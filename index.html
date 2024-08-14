@@ -1,0 +1,125 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rule Engine</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Rule Engine</h1>
+
+        <!-- Create Rule Form -->
+        <form id="createRuleForm">
+            <h2>Create Rule</h2>
+            <label for="ruleName">Rule Name:</label>
+            <input type="text" id="ruleName" name="ruleName" required>
+            <label for="ruleExpression">Rule Expression:</label>
+            <textarea id="ruleExpression" name="ruleExpression" rows="4" required></textarea>
+            <button type="submit">Create Rule</button>
+            <div id="createRuleResult"></div>
+        </form>
+
+        <!-- Evaluate Rule Form -->
+        <form id="evaluateRuleForm">
+            <h2>Evaluate Rule</h2>
+            <label for="ruleSelect">Select Rule:</label>
+            <select id="ruleSelect" name="ruleSelect" required></select>
+            <label for="userAttributes">User Attributes (JSON format):</label>
+            <textarea id="userAttributes" name="userAttributes" rows="4" required></textarea>
+            <button type="submit">Evaluate Rule</button>
+            <div id="evaluationResult"></div>
+        </form>
+
+        <!-- Combine Rules Form -->
+        <form id="combineRulesForm">
+            <h2>Combine Rules</h2>
+            <label for="combineRulesInput">Enter Rules (comma-separated):</label>
+            <textarea id="combineRulesInput" name="combineRulesInput" rows="4" required></textarea>
+            <button type="submit">Combine Rules</button>
+            <div id="combinedRulesOutput" class="ast-output"></div>
+        </form>
+
+        <!-- List of existing rules -->
+        <div class="rule-list" id="ruleList"></div>
+    </div>
+
+    <script>
+        const fetchRules = async () => {
+            const response = await fetch('/api/rules');
+            const rules = await response.json();
+            const ruleSelect = document.getElementById('ruleSelect');
+            const ruleList = document.getElementById('ruleList');
+
+            ruleSelect.innerHTML = '';
+            ruleList.innerHTML = '';
+
+            rules.forEach(rule => {
+                // Populate rule selection dropdown
+                const option = document.createElement('option');
+                option.value = rule._id;
+                option.textContent = rule.name;
+                ruleSelect.appendChild(option);
+
+                // List existing rules
+                const ruleItem = document.createElement('div');
+                ruleItem.className = 'rule-item';
+                ruleItem.innerHTML = `<strong>${rule.name}</strong><br>Expression: ${rule.expression}`;
+                ruleList.appendChild(ruleItem);
+            });
+        };
+
+        document.getElementById('createRuleForm').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const name = document.getElementById('ruleName').value;
+            const expression = document.getElementById('ruleExpression').value;
+
+            const response = await fetch('/api/create-rule', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, expression })
+            });
+
+            const result = await response.json();
+            document.getElementById('createRuleResult').textContent = result.message || result.error;
+            fetchRules();
+        });
+
+        document.getElementById('evaluateRuleForm').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const ruleId = document.getElementById('ruleSelect').value;
+            const attributes = document.getElementById('userAttributes').value;
+
+            const response = await fetch('/api/rules/' + ruleId);
+            const rule = await response.json();
+
+            const evalResponse = await fetch('/api/evaluate-rule', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ruleString: rule.expression, data: JSON.parse(attributes) })
+            });
+
+            const result = await evalResponse.json();
+            document.getElementById('evaluationResult').textContent = result.eligible ? 'User is eligible' : 'User is not eligible';
+        });
+
+        document.getElementById('combineRulesForm').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const rules = document.getElementById('combineRulesInput').value.split(',');
+
+            const response = await fetch('/api/combine-rules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rules })
+            });
+
+            const result = await response.json();
+            document.getElementById('combinedRulesOutput').textContent = JSON.stringify(result.ast, null, 2);
+        });
+
+        fetchRules();
+    </script>
+</body>
+</html>
